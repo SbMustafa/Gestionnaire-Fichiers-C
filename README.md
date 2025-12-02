@@ -4,7 +4,7 @@ Ce projet consiste à développer un système de gestion de fichiers autonome, o
 
 ##  Fonctionnalités Clés
 
-* **Structure Optimale :** Gestion de l'arborescence via un **Arbre Binaire de Recherche auto-équilibré** (Rouge-Noir ou B-Arbre).
+* **Structure Optimale :** Gestion de l'arborescence via un **Arbre Binaire de Recherche auto-équilibré** .
 * **Compression :** Stockage des fichiers compressés en utilisant l'algorithme de **Huffman**.
 * **Interface Graphique :** Application développée en **GTK** permettant l'exploration, l'ajout et la suppression de fichiers/dossiers.
 * **Modularité :** Support des extensions dynamiques (`.so`/`.dll`) pour ajouter des fonctionnalités comme la cryptographie et l'authentification.
