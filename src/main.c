@@ -2,16 +2,24 @@
 #include <string.h>
 #include <stdlib.h>
 #include "fs_core.h"
+#include "ui/interface.h"
 
 // Simple usage:
+// ./fs_prog gui
 // ./fs_prog init fs.bin
-// ./fs_prog add fs.bin filename "content string"
-// ./fs_prog get fs.bin filename
-// ./fs_prog list fs.bin
+// ...
 
 int main(int argc, char *argv[]) {
+    // Si la commande est "gui" ou aucun argument n'est fourni (optionnel), lancer l'interface
+    if (argc >= 2 && strcmp(argv[1], "gui") == 0) {
+        lancer_interface(argc, argv);
+        return 0;
+    }
+
     if (argc < 3) {
         printf("Usage:\n");
+        printf("  %s gui (Lance l'interface graphique)\n", argv[0]);
+
         printf("  %s init <fs_file>\n", argv[0]);
         printf("  %s add <fs_file> <dest_filename> <content>\n", argv[0]);
         printf("  %s addfile <fs_file> <dest_filename> <src_file_path>\n", argv[0]);
