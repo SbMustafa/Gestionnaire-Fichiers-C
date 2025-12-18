@@ -325,35 +325,227 @@ long rb_minimum(FILE *file, long node_offset) {
     return current;
 }
 
-void rb_delete_fixup(FILE *file, long *root_offset, long x_offset) {
-    // x_offset might be -1 if the node was a leaf and we replaced it with NIL (which is implicit).
-    // This is tricky with implicit NIL nodes.
-    // Handling the "Double Black" on NIL nodes requires passing the parent.
-    // Simplifying: If x_offset is -1, we need to know its parent.
-    // This implementation will assume non-NIL x for simplicity or need a specific NIL handling logic.
-    // Standard RB Delete is very complex to implement blindly without debugging.
-    // I will implement a placeholder that returns error for now, asking user if they need full delete immediately,
-    // OR I will implement standard BST delete which is easier, but breaks RBT properties.
-    // The prompt explicitly asked for "rb_delete ... et rééquilibrer".
-    // I will put a stub here and focus on Insert/Search first, then come back to Delete if needed, 
-    // BUT since I must follow requirements, I will attempt to write it.
+// Fixup for deletion
+void rb_delete_fixup(FILE *file, long *root_offset, long x_offset, long x_parent_offset) {
+    // Note: x_offset can be -1 (NIL). We need x_parent_offset to traverse up.
+    // If x_offset is not -1, we can get parent from it. 
+    // This iterative logic follows CLRS but adapted for file offsets.
     
-    // ... (This function is complex. I'll omit the body for safety and to avoid bugs in the first pass, 
-    // unless strictly necessary. I'll provide standard BST delete + warning?)
-    // No, "Antigravity" means I should do it right.
-    // Let's implement the `rb_delete` shell and `rb_delete_fixup` logic later or now?
-    // I'll write the logic.
+    long w_offset;
+    RBTNode x, w, p;
+    
+    // We loop while x is not root and x is black
+    while (x_offset != *root_offset) {
+        // Read x (handle NIL)
+        int x_color = BLACK;
+        if (x_offset != -1) {
+             read_rb_node(file, x_offset, &x);
+             x_color = x.color;
+             x_parent_offset = x.parent_offset; // Update parent tracker
+        }
+        if (x_color == RED) break; // If x becomes red, we just make it black
+
+        read_rb_node(file, x_parent_offset, &p);
+
+        if (x_offset == p.left_offset) {
+            w_offset = p.right_offset;
+            read_rb_node(file, w_offset, &w);
+            
+            if (w.color == RED) {
+                w.color = BLACK;
+                p.color = RED;
+                write_rb_node(file, w_offset, &w);
+                write_rb_node(file, x_parent_offset, &p);
+                left_rotate(file, root_offset, x_parent_offset);
+                // Update new sibling w
+                read_rb_node(file, x_parent_offset, &p); // Reload p (now lower)
+                w_offset = p.right_offset;
+                read_rb_node(file, w_offset, &w);
+            }
+            
+            int left_child_black = 1;
+            int right_child_black = 1;
+            /* Check w children colors */
+            if (w.left_offset != -1) {
+                RBTNode wl;
+                read_rb_node(file, w.left_offset, &wl);
+                if (wl.color == RED) left_child_black = 0;
+            }
+            if (w.right_offset != -1) {
+                RBTNode wr;
+                read_rb_node(file, w.right_offset, &wr);
+                if (wr.color == RED) right_child_black = 0;
+            }
+
+            if (left_child_black && right_child_black) {
+                w.color = RED;
+                write_rb_node(file, w_offset, &w);
+                x_offset = x_parent_offset; // x = x.p
+                // Loop continues
+            } else {
+                if (right_child_black) {
+                    // Case 3
+                    if (w.left_offset != -1) {
+                         RBTNode wl;
+                         read_rb_node(file, w.left_offset, &wl);
+                         wl.color = BLACK;
+                         write_rb_node(file, w.left_offset, &wl);
+                    }
+                    w.color = RED;
+                    write_rb_node(file, w_offset, &w);
+                    right_rotate(file, root_offset, w_offset);
+                    // Update w
+                    read_rb_node(file, x_parent_offset, &p);
+                    w_offset = p.right_offset;
+                    read_rb_node(file, w_offset, &w);
+                }
+                // Case 4
+                w.color = p.color;
+                p.color = BLACK;
+                write_rb_node(file, x_parent_offset, &p);
+                if (w.right_offset != -1) {
+                    RBTNode wr;
+                    read_rb_node(file, w.right_offset, &wr);
+                    wr.color = BLACK;
+                    write_rb_node(file, w.right_offset, &wr);
+                }
+                write_rb_node(file, w_offset, &w);
+                left_rotate(file, root_offset, x_parent_offset);
+                x_offset = *root_offset; // terminate
+            }
+        } else {
+            // Mirror of above
+            w_offset = p.left_offset;
+            read_rb_node(file, w_offset, &w);
+            
+            if (w.color == RED) {
+                w.color = BLACK;
+                p.color = RED;
+                write_rb_node(file, w_offset, &w);
+                write_rb_node(file, x_parent_offset, &p);
+                right_rotate(file, root_offset, x_parent_offset);
+                read_rb_node(file, x_parent_offset, &p); 
+                w_offset = p.left_offset;
+                read_rb_node(file, w_offset, &w);
+            }
+            
+            int left_child_black = 1;
+            int right_child_black = 1;
+            if (w.left_offset != -1) {
+                RBTNode wl;
+                read_rb_node(file, w.left_offset, &wl);
+                if (wl.color == RED) left_child_black = 0;
+            }
+            if (w.right_offset != -1) {
+                RBTNode wr;
+                read_rb_node(file, w.right_offset, &wr);
+                if (wr.color == RED) right_child_black = 0;
+            }
+
+            if (left_child_black && right_child_black) {
+                w.color = RED;
+                write_rb_node(file, w_offset, &w);
+                x_offset = x_parent_offset; 
+            } else {
+                if (left_child_black) {
+                    if (w.right_offset != -1) {
+                         RBTNode wr;
+                         read_rb_node(file, w.right_offset, &wr);
+                         wr.color = BLACK;
+                         write_rb_node(file, w.right_offset, &wr);
+                    }
+                    w.color = RED;
+                    write_rb_node(file, w_offset, &w);
+                    left_rotate(file, root_offset, w_offset);
+                    read_rb_node(file, x_parent_offset, &p);
+                    w_offset = p.left_offset;
+                    read_rb_node(file, w_offset, &w);
+                }
+                w.color = p.color;
+                p.color = BLACK;
+                write_rb_node(file, x_parent_offset, &p);
+                if (w.left_offset != -1) {
+                    RBTNode wl;
+                    read_rb_node(file, w.left_offset, &wl);
+                    wl.color = BLACK;
+                    write_rb_node(file, w.left_offset, &wl);
+                }
+                write_rb_node(file, w_offset, &w);
+                right_rotate(file, root_offset, x_parent_offset);
+                x_offset = *root_offset; 
+            }
+        }
+    }
+    
+    if (x_offset != -1) {
+        read_rb_node(file, x_offset, &x);
+        x.color = BLACK;
+        write_rb_node(file, x_offset, &x);
+    }
 }
 
 int rb_delete(FILE *file, long *root_offset, const char *name) {
     long z_offset = rb_search(file, *root_offset, name);
-    if (z_offset == -1) return -1;
+    if (z_offset == -1) return -1; // Not found
 
-    // Full implementation requires significant code.
-    // I will implement `rb_delete` as finding the node and printing "Not implemented yet" to be honest,
-    // or better, implement it in `fs_core.c` or update this file in a subsequent turn.
-    // Given the constraints and the risk of generating 200 lines of buggy code, I will implement a simplified version:
-    // "Logical deletion" - mark inode as free? RBT doesn't support easy logical delete without rebalancing if we want to reuse space.
-    // I will leave `rb_delete` as a TODO or basic BST delete for this iteration to ensure `rb_insert` works perfectly first.
-    return -2; // Not implemented
+    RBTNode z;
+    read_rb_node(file, z_offset, &z);
+
+    long y_offset = z_offset;
+    RBTNode y = z; // y is the node to be physically removed/moved
+    int y_original_color = y.color;
+    long x_offset;
+    long x_parent_offset; // Need to track parent of x because x might be NIL (-1)
+
+    if (z.left_offset == -1) {
+        x_offset = z.right_offset;
+        x_parent_offset = z.parent_offset; // The parent of x becomes z's parent
+        rb_transplant(file, root_offset, z_offset, z.right_offset);
+    } else if (z.right_offset == -1) {
+        x_offset = z.left_offset;
+        x_parent_offset = z.parent_offset;
+        rb_transplant(file, root_offset, z_offset, z.left_offset);
+    } else {
+        y_offset = rb_minimum(file, z.right_offset);
+        read_rb_node(file, y_offset, &y);
+        y_original_color = y.color;
+        
+        x_offset = y.right_offset; 
+        
+        if (y.parent_offset == z_offset) {
+             x_parent_offset = y_offset; // x.p = y
+        } else {
+             x_parent_offset = y.parent_offset;
+             rb_transplant(file, root_offset, y_offset, y.right_offset);
+             
+             // y moves to z's spot
+             y.right_offset = z.right_offset;
+             // Update z.right parent
+             if (y.right_offset != -1) {
+                 RBTNode yr;
+                 read_rb_node(file, y.right_offset, &yr);
+                 yr.parent_offset = y_offset;
+                 write_rb_node(file, y.right_offset, &yr);
+             }
+        }
+        
+        rb_transplant(file, root_offset, z_offset, y_offset);
+        
+        y.left_offset = z.left_offset;
+        // Update z.left parent
+        if (y.left_offset != -1) {
+            RBTNode yl;
+            read_rb_node(file, y.left_offset, &yl);
+            yl.parent_offset = y_offset;
+            write_rb_node(file, y.left_offset, &yl);
+        }
+        y.color = z.color;
+        write_rb_node(file, y_offset, &y);
+    }
+
+    if (y_original_color == BLACK) {
+        rb_delete_fixup(file, root_offset, x_offset, x_parent_offset);
+    }
+    
+    return 0; 
 }

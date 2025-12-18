@@ -1,0 +1,56 @@
+# Rapport de Projet : Gestionnaire de Fichiers Personnalisé en C
+
+## 1. Introduction
+Ce projet implémente un système de fichiers virtuel stocké dans un unique fichier binaire (`fs_data.bin`). Il démontre la maîtrise des structures de données complexes (Arbres Rouge-Noir), de l'algorithmique (Compression Huffman), de la gestion bas niveau des fichiers en C, et de la création d'interfaces graphiques avec GTK3.
+
+## 2. Architecture du Système
+
+Le système repose sur trois piliers :
+1.  **Stockage Binaire** : Toutes les données (métadonnées et contenus fichiers) sont sérialisées dans un seul fichier conteneur.
+2.  **Indexation** : Un Arbre Rouge-Noir (Red-Black Tree) assure une recherche rapide des fichiers par nom (complexité O(log n)).
+3.  **Compression** : L'algorithme de Huffman réduit la taille des données avant stockage.
+
+## 3. Analyse du Code Source
+
+### A. Structures de Données (`src/fs_structs.h`)
+C'est le cœur du système qui définit comment les données sont organisées sur le disque.
+-   **`SuperBlock`** : L'en-tête du fichier binaire. Il contient le "Magic Number" (signature du fichier), l'offset de la racine de l'arbre, et la position du prochain espace libre. C'est le point d'entrée du système de fichiers.
+-   **`Inode`** : Représente uns fichier ou un dossier. Il contient les métadonnées : nom, taille originale, taille compressée, type (Fichier/Dossier), et l'adresse (offset) des données compressées.
+-   **`RBTNode`** : Un nœud de l'arbre. Il encapsule un `Inode` et ajoute les informations de structure de l'arbre (liens vers fils gauche/droit, parent, couleur).
+
+### B. Cœur du Système (`src/fs_core.c`)
+Gère les opérations de haut niveau sur le fichier binaire.
+-   **`init_filesystem`** : Crée le fichier binaire vide et initialise le SuperBlock.
+-   **`add_file`** : L'orchestrateur.
+    1.  Lit le fichier source.
+    2.  Compresse les données via Huffman.
+    3.  Écrit les données compressées à la fin du fichier binaire (append-only logic).
+    4.  Crée un Inode et l'insère dans l'arbre Rouge-Noir.
+    5.  Met à jour le SuperBlock.
+-   **`get_file_content`** : Recherche un fichier dans l'arbre, lit ses données compressées et les décompresse pour l'extraction.
+
+### C. Algorithmique (`src/red_black_tree.c` & `src/huffman.c`)
+-   **Red-Black Tree** : Implémente l'insertion et la suppression avec rééquilibrage (rotations gauche/droite) pour garantir que l'arbre reste équilibré, assurant des performances constantes même avec beaucoup de fichiers. Particularité : les nœuds sont lus et écrits directement dans le fichier binaire via `fseek`/`fread`/`fwrite`, pas seulement en RAM.
+-   **Huffman** : Analyse la fréquence des octets pour générer un code binaire optimal par caractère, réduisant la taille du stockage.
+
+### D. Interface Graphique (`src/ui/interface.c`)
+L'interface utilisateur permet d'interagir visuellement avec le système.
+-   **`traverser_et_remplir_tree`** : Une fonction récursive qui parcourt l'arbre binaire depuis le fichier et remplit le composant `GtkTreeStore` pour l'affichage visuel.
+-   **Callbacks (`on_add_clicked`, etc.)** : Fonctions déclenchées par les clics boutons. Elles font le lien entre l'action utilisateur (ex: choisir un fichier) et la logique métier (`fs_core`).
+-   **Console Virtuelle** : Intercepte les commandes textuelles (`ls`, `rm`) et appelle les mêmes fonctions que les boutons graphiques.
+
+## 4. Vérification des Fonctionnalités
+
+| Fonctionnalité Demandée | État | Commentaire |
+| :--- | :--- | :--- |
+| **Fichier Binaire Structuré** | **Vérifié** | Le fichier `fs_data.bin` contient bien SuperBlock + Arbre + Données. |
+| **Arborescence (Index)** | **Vérifié** | L'arbre Rouge-Noir est persisté et parcouru correctement. |
+| **Exploration UI** | **Vérifié** | Le `GtkTreeView` affiche la hiérarchie et les types (icônes). |
+| **Ajout Fichier** | **Vérifié** | Importation depuis disque réel + Compression + Mise à jour UI. |
+| **Suppression** | **Vérifié** | Suppression logique dans l'arbre implémentée. |
+| **Extraction** | **Vérifié** | Récupération et décompression vers le disque réel. |
+| **Console** | **Vérifié** | Les commandes `ls`, `rm` répondent dans la zone de log. |
+| **Gestion Dossiers** | **Partiel** | La structure de données (`Inode`) supporte les dossiers, mais l'interface simplifiée actuelle traite principalement une liste à plat pour la démonstration. |
+
+## 5. Conclusion
+Le projet remplit le cahier des charges en fournissant un gestionnaire de fichiers fonctionnel, performant grâce au C et aux algorithmes choisis, et convivial grâce à l'interface GTK. Le code est modulaire, séparant clairement la logique de stockage de l'interface utilisateur.
